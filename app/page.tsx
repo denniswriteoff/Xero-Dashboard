@@ -14,9 +14,15 @@ import {
   Download,
   Settings,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react'
 import ThemeToggle from './components/ThemeToggle'
+import RevenueExpensesChart from './components/RevenueExpensesChart'
+import ExpenseBreakdownChart from './components/ExpenseBreakdownChart'
+import NetProfitTrendChart from './components/NetProfitTrendChart'
 import logoWhite from '/public/logo_long_white.png'
 import logoBlack from '/public/logo_long_black.png'
 
@@ -37,6 +43,15 @@ interface DashboardData {
     value: number
     percentage: number
   }>
+  trendData: Array<{
+    month: string
+    revenue: number
+    expenses: number
+  }>
+  previousPeriodData: Array<{
+    name: string
+    value: number
+  }>
   timeframe: {
     from: string
     to: string
@@ -53,6 +68,8 @@ export default function Dashboard() {
   const [timeframe, setTimeframe] = useState<'YEAR' | 'MONTH'>('YEAR')
   const [refreshing, setRefreshing] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [sortField, setSortField] = useState<'name' | 'value' | 'percentage'>('value')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -147,6 +164,73 @@ export default function Dashboard() {
 
   const formatPercentage = (value: number) => {
     return `${value.toFixed(1)}%`
+  }
+
+  const handleSort = (field: 'name' | 'value' | 'percentage') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('desc')
+    }
+  }
+
+  const getSortedExpenses = () => {
+    if (!data?.expenseBreakdown) return []
+    
+    return [...data.expenseBreakdown].sort((a, b) => {
+      let aValue: string | number
+      let bValue: string | number
+      
+      if (sortField === 'name') {
+        aValue = a.name.toLowerCase()
+        bValue = b.name.toLowerCase()
+      } else if (sortField === 'value') {
+        aValue = a.value
+        bValue = b.value
+      } else {
+        aValue = a.percentage
+        bValue = b.percentage
+      }
+      
+      if (sortDirection === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
+      }
+    })
+  }
+
+  const calculatePercentageChange = (currentValue: number, previousValue: number) => {
+    if (previousValue === 0) {
+      return currentValue > 0 ? 100 : 0
+    }
+    return ((currentValue - previousValue) / previousValue) * 100
+  }
+
+  const getExpenseChange = (expenseName: string) => {
+    if (!data?.previousPeriodData) {
+      return { change: 0, hasData: false }
+    }
+    
+    const previousExpense = data.previousPeriodData.find(prev => 
+      prev.name.toLowerCase() === expenseName.toLowerCase()
+    )
+    
+    if (!previousExpense) {
+      return { change: 0, hasData: false }
+    }
+    
+    const currentExpense = data.expenseBreakdown.find(current => 
+      current.name.toLowerCase() === expenseName.toLowerCase()
+    )
+    
+    if (!currentExpense) {
+      return { change: 0, hasData: false }
+    }
+    
+    const change = calculatePercentageChange(currentExpense.value, previousExpense.value)
+    return { change, hasData: true }
   }
 
   if (status === 'loading') {
@@ -363,10 +447,19 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Expense Breakdown */}
+            {/* Revenue vs Expenses Trend Chart */}
+            <RevenueExpensesChart data={data.trendData} loading={loading} />
+
+            {/* Net Profit Trend Chart */}
+            <NetProfitTrendChart data={data.trendData} loading={loading} />
+
+            {/* Expense Breakdown Chart */}
+            <ExpenseBreakdownChart data={data.expenseBreakdown} loading={loading} />
+
+            {/* Category Highlights Table */}
             <div className="bg-white dark:bg-[#2A2D31] border border-gray-200 dark:border-gray-800 rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium">Expense Breakdown</h3>
+                <h3 className="text-lg font-medium">Category Highlights</h3>
                 <div className="flex items-center space-x-2">
                   <button 
                     onClick={() => handleExport('csv')}
@@ -385,28 +478,93 @@ export default function Dashboard() {
                 </div>
               </div>
               
-              <div className="space-y-3">
-                {data.expenseBreakdown.map((expense, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">{expense.name}</span>
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {formatCurrency(expense.value)}
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-[#2A2D31] rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(expense.percentage, 100)}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {formatPercentage(expense.percentage)} of total expenses
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th 
+                        className="text-left py-3 px-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Category</span>
+                          <ArrowUpDown className="w-3 h-3" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-right py-3 px-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        onClick={() => handleSort('value')}
+                      >
+                        <div className="flex items-center justify-end space-x-1">
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Amount</span>
+                          <ArrowUpDown className="w-3 h-3" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-right py-3 px-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        onClick={() => handleSort('percentage')}
+                      >
+                        <div className="flex items-center justify-end space-x-1">
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">% of Total</span>
+                          <ArrowUpDown className="w-3 h-3" />
+                        </div>
+                      </th>
+                      <th className="text-right py-3 px-4">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Change vs Last Period</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getSortedExpenses().map((expense, index) => (
+                      <tr key={index} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {expense.name}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {formatCurrency(expense.value)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {formatPercentage(expense.percentage)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {(() => {
+                            const { change, hasData } = getExpenseChange(expense.name)
+                            if (!hasData) {
+                              return (
+                                <div className="flex items-center justify-end space-x-1">
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">No data</span>
+                                </div>
+                              )
+                            }
+                            
+                            const isPositive = change > 0
+                            const isNegative = change < 0
+                            const colorClass = isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-gray-600'
+                            
+                            return (
+                              <div className="flex items-center justify-end space-x-1">
+                                {isPositive && <ArrowUp className={`w-3 h-3 ${colorClass}`} />}
+                                {isNegative && <ArrowDown className={`w-3 h-3 ${colorClass}`} />}
+                                <span className={`text-sm font-medium ${colorClass}`}>
+                                  {isPositive ? '+' : ''}{change.toFixed(1)}%
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  vs last {timeframe === 'YEAR' ? 'year' : 'month'}
+                                </span>
+                              </div>
+                            )
+                          })()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

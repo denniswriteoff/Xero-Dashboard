@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     // Process P&L data
     const revenue = extractAccountValue(profitLoss, ['Sales', 'Revenue', 'Income', 'Total Income'])
-    const expenses = extractAccountValue(profitLoss, ['Total Operating Expenses', 'Total Expenses', 'Expenses', 'Operating Expenses'])
+    const expenses = extractAccountValue(profitLoss, ['Total Operating Expenses'])
     const netProfit = extractAccountValue(profitLoss, ['NET PROFIT', 'Net Profit', 'Net Income', 'Profit'])
     
     // If we don't have net profit directly, calculate it
@@ -79,8 +79,15 @@ export async function GET(request: NextRequest) {
     // Process Balance Sheet data
     const cashBalance = extractAccountValue(balanceSheet, ['Business Bank Account', 'Business Savings Account', 'Total Bank', 'Cash', 'Bank', 'Current Assets'])
 
+    console.log(JSON.stringify(profitLoss, null, 2))
     // Process expense breakdown
     const expenseBreakdown = extractExpenseBreakdown(profitLoss)
+
+    // Generate monthly trend data
+    const trendData = await generateMonthlyTrendData(session.user.id, tenantId, currentYear)
+
+    // Get previous period data for comparison
+    const previousPeriodData = await getPreviousPeriodData(session.user.id, tenantId, timeframe, fromDateStr || '', toDateStr || '')
 
     return NextResponse.json({
       organisation: {
@@ -95,6 +102,8 @@ export async function GET(request: NextRequest) {
         cashBalance
       },
       expenseBreakdown,
+      trendData,
+      previousPeriodData,
       timeframe: {
         from: fromDateStr,
         to: toDateStr,
@@ -165,10 +174,9 @@ function extractExpenseBreakdown(report: any): Array<{name: string, value: numbe
   for (const reportData of report.reports) {
     if (reportData.rows) {
       for (const row of reportData.rows) {
-        // Check if this is an expense section
+        // Check if this is the "Less Operating Expenses" section
         if (row.rowType === 'Section' && row.title && 
-            (row.title.toLowerCase().includes('expense') || 
-             row.title.toLowerCase().includes('cost'))) {
+            row.title.toLowerCase().includes('less operating expenses')) {
           
           if (row.rows && Array.isArray(row.rows)) {
             for (const expenseRow of row.rows) {
@@ -180,16 +188,11 @@ function extractExpenseBreakdown(report: any): Array<{name: string, value: numbe
                   const expenseName = name.toString()
                   const numericValue = typeof value === 'string' ? parseFloat(value) : value
                   
-                  if (!isNaN(numericValue) && numericValue < 0) {
-                    const expenseValue = Math.abs(numericValue)
-                    
-                    // Filter out main categories and focus on subcategories
-                    if (!expenseName.toLowerCase().includes('total') && 
-                        !expenseName.toLowerCase().includes('expenses') &&
-                        expenseValue > 0) {
-                      expenses.push({ name: expenseName, value: expenseValue })
-                      totalExpenses += expenseValue
-                    }
+                  // Skip the "Total Operating Expenses" summary row
+                  if (!expenseName.toLowerCase().includes('total operating expenses') && 
+                      !isNaN(numericValue) && numericValue > 0) {
+                    expenses.push({ name: expenseName, value: numericValue })
+                    totalExpenses += numericValue
                   }
                 }
               }
@@ -208,4 +211,80 @@ function extractExpenseBreakdown(report: any): Array<{name: string, value: numbe
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 10) // Top 10 expenses
+}
+
+async function generateMonthlyTrendData(userId: string, tenantId: string, year: number): Promise<Array<{month: string, revenue: number, expenses: number}>> {
+  const trendData = []
+  
+  try {
+    // Get data for each month of the current year
+    for (let month = 1; month <= 12; month++) {
+      const monthStart = new Date(year, month - 1, 1)
+      const monthEnd = new Date(year, month, 0)
+      const fromDate = monthStart.toISOString().split('T')[0]
+      const toDate = monthEnd.toISOString().split('T')[0]
+      
+      try {
+        const profitLoss = await getProfitAndLossReport(userId, tenantId, {
+          fromDate,
+          toDate,
+          standardLayout: true
+        })
+        
+        const revenue = extractAccountValue(profitLoss, ['Sales', 'Revenue', 'Income', 'Total Income'])
+        const expenses = extractAccountValue(profitLoss, ['Total Operating Expenses'])
+        
+        trendData.push({
+          month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
+          revenue: Math.abs(revenue),
+          expenses: Math.abs(expenses)
+        })
+      } catch (error) {
+        console.error(`Error fetching data for ${month}/${year}:`, error)
+        // Add zero values for months with errors
+        trendData.push({
+          month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
+          revenue: 0,
+          expenses: 0
+        })
+      }
+    }
+  } catch (error) {
+    console.error('Error generating trend data:', error)
+  }
+  
+  return trendData
+}
+
+async function getPreviousPeriodData(userId: string, tenantId: string, timeframe: string, fromDate: string, toDate: string): Promise<Array<{name: string, value: number}>> {
+  try {
+    let previousFromDate: string
+    let previousToDate: string
+
+    if (timeframe === 'YEAR') {
+      // Get previous year data
+      const currentYear = new Date(fromDate).getFullYear()
+      const previousYear = currentYear - 1
+      previousFromDate = `${previousYear}-01-01`
+      previousToDate = `${previousYear}-12-31`
+    } else {
+      // Get previous month data
+      const currentDate = new Date(fromDate)
+      const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
+      const previousMonthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0)
+      previousFromDate = previousMonth.toISOString().split('T')[0]
+      previousToDate = previousMonthEnd.toISOString().split('T')[0]
+    }
+
+    const previousProfitLoss = await getProfitAndLossReport(userId, tenantId, {
+      fromDate: previousFromDate,
+      toDate: previousToDate,
+      standardLayout: true
+    })
+
+    return extractExpenseBreakdown(previousProfitLoss)
+  } catch (error) {
+    console.error('Error fetching previous period data:', error)
+    return []
+  }
 }
