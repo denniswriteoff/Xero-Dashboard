@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
 
     const tokens = await getXeroTokens(session.user.id);
     
-    if (!tokens || tokens.length === 0) {
+    // Handle both single token and array of tokens
+    const tokenArray = Array.isArray(tokens) ? tokens : (tokens ? [tokens] : []);
+    
+    if (tokenArray.length === 0) {
       return NextResponse.json({
         connected: false,
         totalConnections: 0,
@@ -24,7 +27,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const connections = tokens.map(token => ({
+    const connections = tokenArray.map(token => ({
       tenantId: token.tenantId,
       connected: true,
       expiresAt: token.accessTokenExpiresAt.toISOString(),

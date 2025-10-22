@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest) {
 
     // If changing password, verify current password
     if (newPassword && currentPassword) {
-      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!isCurrentPasswordValid) {
         return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 });
       }
@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest) {
     };
 
     if (newPassword) {
-      updateData.password = await bcrypt.hash(newPassword, 12);
+      updateData.passwordHash = await bcrypt.hash(newPassword, 12);
     }
 
     await prisma.user.update({
