@@ -327,27 +327,34 @@ export default function Dashboard() {
           </div>
         )}
 
-        {error && (
+        {error && error !== 'No Xero connection found' && (
           <div className="mb-6 p-4 rounded-md bg-red-50 dark:bg-[#2A2D31] border border-red-200 dark:border-red-800">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-red-800 dark:text-red-200">
-                {error === 'No Xero connection found' ? (
-                  <div>
-                    <p className="font-medium">Xero not connected</p>
-                    <p className="text-xs mt-1">Connect your Xero account to view financial data</p>
-                  </div>
-                ) : (
-                  <p>{error}</p>
-                )}
+            <div className="text-sm text-red-800 dark:text-red-200">
+              <p>{error}</p>
+            </div>
+          </div>
+        )}
+
+        {error === 'No Xero connection found' && (
+          <div className="mb-6 bg-white dark:bg-[#1E2023] rounded-lg p-6 shadow-sm border border-gray-200 dark:border-[#2A2D31]">
+            <div className="text-center py-8">
+              <div className="w-12 h-12 mx-auto mb-4 bg-black dark:bg-[#2A2D31] rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
               </div>
-              {error === 'No Xero connection found' && (
-                <button
-                  onClick={handleConnectXero}
-                  className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                >
-                  Connect Xero
-                </button>
-              )}
+              <h3 className="text-lg font-medium text-black dark:text-white mb-2">
+                Connect to Xero
+              </h3>
+              <p className="text-sm text-black dark:text-gray-400 mb-6 max-w-sm mx-auto">
+                Connect your Xero account to enable accounting integrations and financial data access
+              </p>
+              <button
+                onClick={handleConnectXero}
+                className="px-6 py-2 bg-black text-white dark:bg-[#2A2D31] dark:text-white rounded-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-opacity shadow-sm"
+              >
+                Connect to Xero
+              </button>
             </div>
           </div>
         )}
@@ -569,19 +576,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        ) : (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center space-y-4">
-              <div className="text-sm text-gray-600 dark:text-gray-400">No data available</div>
-              <button
-                onClick={handleConnectXero}
-                className="px-4 py-2 bg-black text-white dark:bg-white dark:text-black rounded-md hover:opacity-90 transition-opacity"
-              >
-                Connect Xero
-              </button>
-            </div>
-          </div>
-        )}
+        ) : null}
         </div>
       </main>
     </div>

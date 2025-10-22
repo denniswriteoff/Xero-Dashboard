@@ -1,130 +1,78 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { signIn, getSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import logoWhite from '/public/logo_long_white.png'
-import logoBlack from '/public/logo_long_black.png'
+import { signIn } from 'next-auth/react';
+import { useState } from 'react';
+import Image from 'next/image';
+import logoWhite from "/public/logo_long_white.png";
+import logoBlack from "/public/logo_long_black.png";
 
-export default function Login() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const router = useRouter()
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        setError('Invalid credentials')
-      } else {
-        const session = await getSession()
-        if (session) {
-          router.push('/')
-        }
-      }
-    } catch (err) {
-      setError('An error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="mobile-viewport-height overflow-hidden bg-white text-black dark:bg-black dark:text-white flex items-center justify-center zoom-container">
-      <div className="max-w-md w-full space-y-8 p-8">
-        <div className="text-center">
-          <span className="inline-flex">
+    <div className="min-h-screen bg-white text-black dark:bg-black dark:text-white flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-sm border border-gray-200 dark:border-white/10 rounded-xl p-6 sm:p-8">
+        {/* Logo and Branding */}
+        <div className="flex flex-col items-center mb-8">
+          <span className="inline-flex mb-4">
             <Image
               src={logoBlack}
               alt="Writeoff Logo"
-              height={32}
-              width={192}
-              className="h-8 w-auto object-contain block dark:hidden mx-auto"
+              height={28}
+              width={168}
+              className="h-7 w-auto object-contain block dark:hidden"
               priority
             />
             <Image
               src={logoWhite}
               alt="Writeoff Logo"
-              height={32}
-              width={192}
-              className="h-8 w-auto object-contain hidden dark:block mx-auto"
+              height={28}
+              width={168}
+              className="h-7 w-auto object-contain hidden dark:block"
               priority
             />
           </span>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900 dark:text-white">
-            Sign in to Dashboard
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Access your financial dashboard
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-center mb-2">Financial Dashboard</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">Sign in to access your dashboard</p>
         </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-black focus:border-black dark:bg-gray-800 dark:text-white"
-                placeholder="Enter your email"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-black focus:border-black dark:bg-gray-800 dark:text-white"
-                placeholder="Enter your password"
-              />
-            </div>
-          </div>
-
-          {error && (
-            <div className="text-sm text-red-600 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-black dark:hover:bg-gray-100"
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </div>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError(null);
+            const res = await signIn('credentials', { email, password, redirect: true, callbackUrl: '/' });
+            if (res?.error) setError('Invalid credentials');
+          }}
+          className="space-y-4"
+        >
+          <input
+            className="w-full h-12 sm:h-11 rounded-md border border-gray-300 dark:border-white/20 bg-white dark:bg-black px-4 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+          />
+          <input
+            className="w-full h-12 sm:h-11 rounded-md border border-gray-300 dark:border-white/20 bg-white dark:bg-black px-4 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          {error && <div className="text-sm text-red-600 text-center">{error}</div>}
+          <button 
+            type="submit" 
+            className="w-full h-12 sm:h-11 rounded-md bg-black text-white dark:bg-white dark:text-black hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-black font-medium text-base sm:text-sm transition-opacity"
+          >
+            Sign in
+          </button>
         </form>
       </div>
     </div>
-  )
+  );
 }
