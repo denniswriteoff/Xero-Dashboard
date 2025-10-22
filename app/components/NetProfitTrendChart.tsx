@@ -37,6 +37,8 @@ export default function NetProfitTrendChart({ data, loading = false }: NetProfit
   // Calculate net profit for each month
   const chartData = data.map(item => ({
     month: item.month,
+    revenue: item.revenue,
+    expenses: item.expenses,
     netProfit: item.revenue - item.expenses
   }))
 

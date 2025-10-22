@@ -545,7 +545,8 @@ export default function Dashboard() {
                             
                             const isPositive = change > 0
                             const isNegative = change < 0
-                            const colorClass = isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-gray-600'
+                            // For expenses: positive change (spending more) is bad (red), negative change (spending less) is good (green)
+                            const colorClass = isPositive ? 'text-red-600' : isNegative ? 'text-green-600' : 'text-gray-600'
                             
                             return (
                               <div className="flex items-center justify-end space-x-1">

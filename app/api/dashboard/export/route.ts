@@ -91,8 +91,8 @@ export async function GET(request: NextRequest) {
 
 function processDataForExport(profitLoss: any, balanceSheet: any, fromDate: string, toDate: string) {
   const revenue = extractAccountValue(profitLoss, ['Sales', 'Revenue', 'Income', 'Total Income'])
-  const expenses = extractAccountValue(profitLoss, ['Total Operating Expenses', 'Total Expenses', 'Expenses', 'Operating Expenses'])
-  const netProfit = extractAccountValue(profitLoss, ['NET PROFIT', 'Net Profit', 'Net Income', 'Profit'])
+  const expenses = extractTotalOperatingExpenses(profitLoss)
+  const netProfit = extractNetProfit(profitLoss)
   
   // If we don't have net profit directly, calculate it
   const calculatedNetProfit = revenue - expenses
@@ -167,6 +167,67 @@ function extractAccountValue(report: any, accountNames: string[]): number {
   return 0
 }
 
+function extractTotalOperatingExpenses(report: any): number {
+  if (!report?.reports || !Array.isArray(report.reports)) {
+    return 0
+  }
+
+  for (const reportData of report.reports) {
+    if (reportData.rows) {
+      for (const row of reportData.rows) {
+        // Check if this is the "Less Operating Expenses" section
+        if (row.rowType === 'Section' && row.title && 
+            row.title.toLowerCase().includes('less operating expenses')) {
+          
+          if (row.rows && Array.isArray(row.rows)) {
+            for (const expenseRow of row.rows) {
+              // Look for the "Total Operating Expenses" summary row
+              if (expenseRow.rowType === 'SummaryRow' && expenseRow.cells && expenseRow.cells.length >= 2) {
+                const name = expenseRow.cells[0]?.value
+                const value = expenseRow.cells[1]?.value
+
+                if (name && name.toString().toLowerCase().includes('total operating expenses')) {
+                  const numericValue = typeof value === 'string' ? parseFloat(value) : value
+                  if (!isNaN(numericValue)) {
+                    return Math.abs(numericValue)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return 0
+}
+
+function extractNetProfit(report: any): number {
+  if (!report?.reports || !Array.isArray(report.reports)) {
+    return 0
+  }
+
+  for (const reportData of report.reports) {
+    if (reportData.rows) {
+      for (const row of reportData.rows) {
+        // Look for the final "Net Profit" row
+        if (row.rowType === 'Row' && row.cells && row.cells.length >= 2) {
+          const name = row.cells[0]?.value
+          const value = row.cells[1]?.value
+
+          if (name && name.toString().toLowerCase().includes('net profit')) {
+            const numericValue = typeof value === 'string' ? parseFloat(value) : value
+            if (!isNaN(numericValue)) {
+              return numericValue // Don't use Math.abs here as net profit can be negative
+            }
+          }
+        }
+      }
+    }
+  }
+  return 0
+}
+
 function extractExpenseBreakdown(report: any): Array<{name: string, value: number, percentage: number}> {
   const expenses: Array<{name: string, value: number}> = []
   let totalExpenses = 0
@@ -178,10 +239,9 @@ function extractExpenseBreakdown(report: any): Array<{name: string, value: numbe
   for (const reportData of report.reports) {
     if (reportData.rows) {
       for (const row of reportData.rows) {
-        // Check if this is an expense section
+        // Check if this is the "Less Operating Expenses" section
         if (row.rowType === 'Section' && row.title && 
-            (row.title.toLowerCase().includes('expense') || 
-             row.title.toLowerCase().includes('cost'))) {
+            row.title.toLowerCase().includes('less operating expenses')) {
           
           if (row.rows && Array.isArray(row.rows)) {
             for (const expenseRow of row.rows) {
@@ -193,16 +253,11 @@ function extractExpenseBreakdown(report: any): Array<{name: string, value: numbe
                   const expenseName = name.toString()
                   const numericValue = typeof value === 'string' ? parseFloat(value) : value
                   
-                  if (!isNaN(numericValue) && numericValue < 0) {
-                    const expenseValue = Math.abs(numericValue)
-                    
-                    // Filter out main categories and focus on subcategories
-                    if (!expenseName.toLowerCase().includes('total') && 
-                        !expenseName.toLowerCase().includes('expenses') &&
-                        expenseValue > 0) {
-                      expenses.push({ name: expenseName, value: expenseValue })
-                      totalExpenses += expenseValue
-                    }
+                  // Skip the "Total Operating Expenses" summary row
+                  if (!expenseName.toLowerCase().includes('total operating expenses') && 
+                      !isNaN(numericValue) && numericValue > 0) {
+                    expenses.push({ name: expenseName, value: numericValue })
+                    totalExpenses += numericValue
                   }
                 }
               }
@@ -220,7 +275,17 @@ function extractExpenseBreakdown(report: any): Array<{name: string, value: numbe
       percentage: totalExpenses > 0 ? (expense.value / totalExpenses) * 100 : 0
     }))
     .sort((a, b) => b.value - a.value)
-    .slice(0, 20) // Top 20 expenses
+    .slice(0, 10) // Top 10 expenses
+}
+
+function escapeCSVField(field: string): string {
+  // If the field contains commas, quotes, or newlines, wrap it in quotes
+  if (field.includes(',') || field.includes('"') || field.includes('\n') || field.includes('\r')) {
+    // Escape any existing quotes by doubling them
+    const escapedField = field.replace(/"/g, '""')
+    return `"${escapedField}"`
+  }
+  return field
 }
 
 function generateCSV(data: any): string {
@@ -245,7 +310,9 @@ function generateCSV(data: any): string {
   lines.push('Expense Breakdown')
   lines.push('Category,Amount,Percentage')
   data.expenseBreakdown.forEach((expense: any) => {
-    lines.push(`${expense.name},${expense.value},${expense.percentage.toFixed(2)}`)
+    // Properly escape CSV fields
+    const escapedName = escapeCSVField(expense.name)
+    lines.push(`${escapedName},${expense.value},${expense.percentage.toFixed(2)}`)
   })
   
   return lines.join('\n')
