@@ -92,7 +92,6 @@ export async function getProfitAndLossReport(userId: string, tenantId: string, o
   }
 
   try {
-    console.log('Getting profit and loss report');
 
     const response = await xero.accountingApi.getReportProfitAndLoss(
       tenantId,
@@ -107,8 +106,6 @@ export async function getProfitAndLossReport(userId: string, tenantId: string, o
       options?.standardLayout,
       options?.paymentsOnly
     );
-    console.log('Profit and loss report response');
-    console.log(response.body);
     return response.body;
   } catch (error) {
     console.error('Error fetching profit and loss report:', error);
@@ -144,8 +141,6 @@ export async function getBalanceSheetReport(userId: string, tenantId: string, op
       options?.standardLayout,
       options?.paymentsOnly
     );
-    console.log('Balance sheet report response');
-    console.log(response.body);
     return response.body;
   } catch (error) {
     console.error('Error fetching balance sheet report:', error);

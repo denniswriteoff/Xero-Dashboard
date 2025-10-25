@@ -62,12 +62,8 @@ export async function GET(request: NextRequest) {
       getOrganisation(session.user.id, tenantId)
     ])
 
-    // Debug logging
-    console.log('Profit & Loss Report Structure:', JSON.stringify(profitLoss, null, 2))
-    console.log('Balance Sheet Report Structure:', JSON.stringify(balanceSheet, null, 2))
-
     // Process P&L data
-    const revenue = extractAccountValue(profitLoss, ['Sales', 'Revenue', 'Income', 'Total Income'])
+    const revenue = extractAccountValue(profitLoss, ['Total Income'])
     const expenses = extractTotalOperatingExpenses(profitLoss)
     const netProfit = extractNetProfit(profitLoss)
     
@@ -77,9 +73,8 @@ export async function GET(request: NextRequest) {
     const netMargin = revenue > 0 ? (finalNetProfit / revenue) * 100 : 0
 
     // Process Balance Sheet data
-    const cashBalance = extractAccountValue(balanceSheet, ['Business Bank Account', 'Business Savings Account', 'Total Bank', 'Cash', 'Bank', 'Current Assets'])
+    const cashBalance = extractAccountValue(balanceSheet, ['Total Bank'])
 
-    console.log(JSON.stringify(profitLoss, null, 2))
     // Process expense breakdown
     const expenseBreakdown = extractExpenseBreakdown(profitLoss)
 
@@ -125,7 +120,7 @@ function extractAccountValue(report: any, accountNames: string[]): number {
   for (const reportData of report.reports) {
     if (reportData.rows) {
       for (const row of reportData.rows) {
-        if (row.rowType === 'Row' && row.cells) {
+        if ((row.rowType === 'Row' || row.rowType === 'SummaryRow') && row.cells) {
           const name = row.cells[0]?.value
           const value = row.cells[1]?.value
 
@@ -142,7 +137,7 @@ function extractAccountValue(report: any, accountNames: string[]): number {
         // Check nested rows in sections
         if (row.rows && Array.isArray(row.rows)) {
           for (const nestedRow of row.rows) {
-            if (nestedRow.rowType === 'Row' && nestedRow.cells) {
+            if ((nestedRow.rowType === 'Row' || nestedRow.rowType === 'SummaryRow') && nestedRow.cells) {
               const name = nestedRow.cells[0]?.value
               const value = nestedRow.cells[1]?.value
 
@@ -292,7 +287,7 @@ async function generateMonthlyTrendData(userId: string, tenantId: string, year: 
           standardLayout: true
         })
         
-        const revenue = extractAccountValue(profitLoss, ['Sales', 'Revenue', 'Income', 'Total Income'])
+        const revenue = extractAccountValue(profitLoss, ['Total Income'])
         const expenses = extractTotalOperatingExpenses(profitLoss)
         
         trendData.push({
