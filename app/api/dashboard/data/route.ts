@@ -65,12 +65,9 @@ export async function GET(request: NextRequest) {
     // Process P&L data
     const revenue = extractAccountValue(profitLoss, ['Total Income'])
     const expenses = extractTotalOperatingExpenses(profitLoss)
-    const netProfit = extractNetProfit(profitLoss)
-    
-    // If we don't have net profit directly, calculate it
-    const calculatedNetProfit = revenue - expenses
-    const finalNetProfit = netProfit !== 0 ? netProfit : calculatedNetProfit
-    const netMargin = revenue > 0 ? (finalNetProfit / revenue) * 100 : 0
+    const netProfit = extractAccountValue(profitLoss, ['Net Profit'])
+
+    const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0
 
     // Process Balance Sheet data
     const cashBalance = extractAccountValue(balanceSheet, ['Total Bank'])
@@ -92,7 +89,7 @@ export async function GET(request: NextRequest) {
       kpis: {
         revenue,
         expenses,
-        netProfit: finalNetProfit,
+        netProfit: netProfit,
         netMargin,
         cashBalance
       },
@@ -129,7 +126,7 @@ function extractAccountValue(report: any, accountNames: string[]): number {
           )) {
             const numericValue = typeof value === 'string' ? parseFloat(value) : value
             if (!isNaN(numericValue)) {
-              return Math.abs(numericValue)
+              return numericValue
             }
           }
         }
@@ -146,7 +143,7 @@ function extractAccountValue(report: any, accountNames: string[]): number {
               )) {
                 const numericValue = typeof value === 'string' ? parseFloat(value) : value
                 if (!isNaN(numericValue)) {
-                  return Math.abs(numericValue)
+                  return numericValue
                 }
               }
             }
@@ -162,6 +159,7 @@ function extractTotalOperatingExpenses(report: any): number {
   if (!report?.reports || !Array.isArray(report.reports)) {
     return 0
   }
+  const costOfSales = extractAccountValue(report, ['Total Cost of Sales'])
 
   for (const reportData of report.reports) {
     if (reportData.rows) {
@@ -180,7 +178,7 @@ function extractTotalOperatingExpenses(report: any): number {
                 if (name && name.toString().toLowerCase().includes('total operating expenses')) {
                   const numericValue = typeof value === 'string' ? parseFloat(value) : value
                   if (!isNaN(numericValue)) {
-                    return Math.abs(numericValue)
+                    return Math.abs(numericValue) + costOfSales
                   }
                 }
               }
@@ -193,36 +191,12 @@ function extractTotalOperatingExpenses(report: any): number {
   return 0
 }
 
-function extractNetProfit(report: any): number {
-  if (!report?.reports || !Array.isArray(report.reports)) {
-    return 0
-  }
-
-  for (const reportData of report.reports) {
-    if (reportData.rows) {
-      for (const row of reportData.rows) {
-        // Look for the final "Net Profit" row
-        if (row.rowType === 'Row' && row.cells && row.cells.length >= 2) {
-          const name = row.cells[0]?.value
-          const value = row.cells[1]?.value
-
-          if (name && name.toString().toLowerCase().includes('net profit')) {
-            const numericValue = typeof value === 'string' ? parseFloat(value) : value
-            if (!isNaN(numericValue)) {
-              return numericValue // Don't use Math.abs here as net profit can be negative
-            }
-          }
-        }
-      }
-    }
-  }
-  return 0
-}
-
 function extractExpenseBreakdown(report: any): Array<{name: string, value: number, percentage: number}> {
   const expenses: Array<{name: string, value: number}> = []
-  let totalExpenses = 0
+  const costOfSales = extractAccountValue(report, ['Total Cost of Sales'])
+  let totalExpenses = costOfSales || 0
 
+  expenses.push({ name: 'Cost of Sales', value: costOfSales })
   if (!report?.reports || !Array.isArray(report.reports)) {
     return []
   }
